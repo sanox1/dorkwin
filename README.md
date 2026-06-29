@@ -1,0 +1,26 @@
+Daily DORK lotto, play on the dorkcoin blockchain.
+ 
+https://dorkexplorer.com/ - explorer, 
+https://coin.dorkcoingames.com/ - website,
+https://dorkcoingames.com/ - dork arcade
+
+How to install:
+1. You need to run NODE.JS and DORKCORE WALLET GUI QT version in Windows.
+2. If you run DORKCORE WALLET in Windows you need to open : %APPDATA%\Dorkcoin\dorkcoin.conf and add these lines
+server=1
+rpcport=22555
+rpcuser=your_user
+rpcpassword=Your_pass
+4. In NODE.JS you need AXIOS, CORS, e.g. run npm install axios
+5. You can then run your backend script dorkwin_backend.js with NODE.JS
+6. You need to open port 3000 so your Server is available outside
+7. You can host index.html in any hosting.
+   
+How Frontend HTML Works:  
+1. User enters their Dorkcoin address
+2. Backend checks if they've played today
+3. If not played → button becomes clickable
+4. User clicks "OPEN CHEST"
+5. Backend calculates random prize
+6. Prize sent to user's address (if won)
+7. Play recorded - can't play again until tomorrow
