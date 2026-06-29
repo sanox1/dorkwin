@@ -6,7 +6,7 @@ https://dorkcoingames.com/ - dork arcade
 
 How to install:
 1. You need to run NODE.JS and DORKCORE WALLET GUI QT version in Windows.
-2. If you run DORKCORE WALLET in Windows you need to open : %APPDATA%\Dorkcoin\dorkcoin.conf and add these lines
+2. If you run DORKCORE WALLET in Windows you need to open : %APPDATA%\Dorkcoin\dorkcoin.conf and add these lines:
 server=1
 rpcport=22555
 rpcuser=your_user
