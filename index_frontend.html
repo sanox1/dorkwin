@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎰 Dorkwin Daily Lotto (Beta)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 24px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(45deg, #f7971e, #ffd200);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .input-group {
+            margin: 20px 0;
+        }
+
+        .input-group label {
+            display: block;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 14px 18px;
+            border: 2px solid #ddd;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #f7971e;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(247, 151, 30, 0.1);
+        }
+
+        .chest-box {
+            margin: 30px 0;
+            cursor: pointer;
+            transition: transform 0.3s;
+            position: relative;
+        }
+
+        .chest-box:hover {
+            transform: scale(1.02);
+        }
+
+        .chest-box img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 16px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .chest-box .chest-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 60px;
+            opacity: 0;
+            transition: opacity 0.5s;
+            pointer-events: none;
+        }
+
+        .chest-box.opened .chest-overlay {
+            opacity: 1;
+        }
+
+        .btn-open {
+            background: linear-gradient(45deg, #f7971e, #ffd200);
+            border: none;
+            padding: 16px 48px;
+            font-size: 20px;
+            font-weight: 700;
+            border-radius: 50px;
+            color: #1a1a2e;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .btn-open:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(247, 151, 30, 0.4);
+        }
+
+        .btn-open:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .prize-display {
+            margin: 25px 0;
+            padding: 20px;
+            border-radius: 16px;
+            background: #f8f9fa;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.5s;
+        }
+
+        .prize-display.win {
+            background: #d4edda;
+            border: 2px solid #28a745;
+        }
+
+        .prize-display.lose {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
+        }
+
+        .prize-display .prize-emoji {
+            font-size: 40px;
+            margin-right: 15px;
+        }
+
+        .prize-display .prize-amount {
+            font-size: 28px;
+            font-weight: 700;
+            color: #28a745;
+        }
+
+        .status-text {
+            margin-top: 15px;
+            font-size: 13px;
+            color: #2e7d32;
+            font-weight: 600;
+            word-break: break-all;
+            padding: 10px;
+            background: #e8f5e9;
+            border-radius: 8px;
+        }
+
+        .status-text.error {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .status-text.info {
+            background: #e3f2fd;
+            color: #0d47a1;
+        }
+
+        .rules {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            text-align: left;
+        }
+
+        .rules h3 {
+            color: #333;
+            margin-bottom: 12px;
+        }
+
+        .rules .prize-tier {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+
+        .rules .prize-tier:last-child {
+            border-bottom: none;
+        }
+
+        .rules .tier-emoji {
+            font-size: 20px;
+        }
+
+        .rules .tier-chance {
+            color: #666;
+            font-size: 12px;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+            padding: 15px;
+            background: #e8f5e9;
+            border-radius: 12px;
+            font-size: 14px;
+        }
+
+        .stats div {
+            text-align: center;
+        }
+
+        .stats .number {
+            font-size: 22px;
+            font-weight: 700;
+            color: #2e7d32;
+        }
+
+        .free-badge {
+            display: inline-block;
+            background: #4CAF50;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 15px;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+            }
+            h1 {
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎰 Dorkwin Daily Lotto (Beta)</h1>
+        <p class="subtitle">Open the treasure chest once a day and win $DORK!</p>
+        
+        <div class="free-badge">🎁 FREE TO PLAY</div>
+
+        <!-- Wallet Input -->
+        <div class="input-group">
+            <label>💰 Wallet Address</label>
+            <input type="text" id="walletAddress" placeholder="Enter your Dorkcoin address">
+        </div>
+
+        <!-- Stats -->
+        <div class="stats" id="stats">
+            <div>
+                <div class="number" id="todayPlays">0</div>
+                <div>Today's Plays</div>
+            </div>
+            <div>
+                <div class="number" id="totalPlayers">0</div>
+                <div>Total Players</div>
+            </div>
+            <div>
+                <div class="number" id="resetTime">12:00 UTC</div>
+                <div>Next Reset</div>
+            </div>
+        </div>
+
+        <!-- Chest -->
+        <div class="chest-box" id="chestBox">
+            <img src="chest.jpg" alt="Treasure Chest" width="500" height="600">
+            <div class="chest-overlay" id="chestOverlay">🎁</div>
+        </div>
+
+        <!-- Open Button -->
+        <button class="btn-open" id="openBtn" onclick="startLotto()">🔓 OPEN CHEST</button>
+
+        <!-- Prize Display -->
+        <div class="prize-display" id="prizeDisplay">
+            🎯 Enter your address and open the chest!
+        </div>
+
+        <!-- Status -->
+        <div class="status-text" id="status">
+            👤 Waiting for wallet address...
+        </div>
+
+        <!-- Rules -->
+        <div class="rules">
+            <h3>🎯 Prize Tiers</h3>
+            <div class="prize-tier">
+                <span><span class="tier-emoji">👑</span> Mythic</span>
+                <span>500 DORK <span class="tier-chance">(0.5%)</span></span>
+            </div>
+            <div class="prize-tier">
+                <span><span class="tier-emoji">💎</span> Legendary</span>
+                <span>250 DORK <span class="tier-chance">(3.0%)</span></span>
+            </div>
+            <div class="prize-tier">
+                <span><span class="tier-emoji">🪨</span> Epic</span>
+                <span>50 DORK <span class="tier-chance">(10.0%)</span></span>
+            </div>
+            <div class="prize-tier">
+                <span><span class="tier-emoji">🔨</span> Rare</span>
+                <span>15 DORK <span class="tier-chance">(20.0%)</span></span>
+            </div>
+            <div class="prize-tier">
+                <span><span class="tier-emoji">🥦</span> Common</span>
+                <span>5 DORK <span class="tier-chance">(35.0%)</span></span>
+            </div>
+            <div class="prize-tier" style="color: #666;">
+                <span>😢 No Luck</span>
+                <span>0 DORK <span class="tier-chance">(31.5%)</span></span>
+            </div>
+            <p style="margin-top: 12px; font-size: 13px; color: #666; text-align: center;">
+                🔄 One play per day • Resets at 12:00 UTC • Free to play!
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // ===== CONFIGURATION =====
+        // Change this to your server's IP and port
+        const API_URL = 'http://192.168.0.1:3000'; // <-- UPDATE THIS
+        
+        let currentAddress = '';
+        let canPlay = false;
+
+        // ===== Check connection status =====
+        document.getElementById('walletAddress').addEventListener('input', async function() {
+            currentAddress = this.value.trim();
+            if (currentAddress && currentAddress.length >= 30) {
+                await checkStatus();
+            } else {
+                document.getElementById('status').textContent = '👤 Enter a valid Dorkcoin address';
+                document.getElementById('status').className = 'status-text';
+                document.getElementById('openBtn').disabled = true;
+            }
+        });
+
+        // ===== Check if user can play =====
+        async function checkStatus() {
+            if (!currentAddress || currentAddress.length < 30) return;
+            
+            try {
+                const response = await fetch(`${API_URL}/api/canplay/${currentAddress}`);
+                const data = await response.json();
+                
+                const statusEl = document.getElementById('status');
+                
+                if (data.canPlay) {
+                    statusEl.textContent = '✅ Ready to open the chest! 🎰';
+                    statusEl.className = 'status-text';
+                    canPlay = true;
+                    document.getElementById('openBtn').disabled = false;
+                } else if (data.hasPlayed) {
+                    statusEl.textContent = '⏳ Already played today! Come back tomorrow at 12:00 UTC!';
+                    statusEl.className = 'status-text error';
+                    canPlay = false;
+                    document.getElementById('openBtn').disabled = true;
+                } else {
+                    statusEl.textContent = '⚠️ Unknown status - please try again';
+                    statusEl.className = 'status-text error';
+                    canPlay = false;
+                    document.getElementById('openBtn').disabled = true;
+                }
+            } catch (error) {
+                console.error('Status check error:', error);
+                document.getElementById('status').textContent = '❌ Error connecting to server';
+                document.getElementById('status').className = 'status-text error';
+                document.getElementById('openBtn').disabled = true;
+            }
+        }
+
+        // ===== Open Chest =====
+        async function startLotto() {
+            if (!currentAddress || currentAddress.length < 30) {
+                alert('Please enter a valid Dorkcoin address first!');
+                return;
+            }
+
+            if (!canPlay) {
+                await checkStatus();
+                if (!canPlay) {
+                    alert('You cannot play right now. Check the status message above!');
+                    return;
+                }
+            }
+
+            // Disable button and show loading
+            const btn = document.getElementById('openBtn');
+            btn.disabled = true;
+            btn.textContent = '🎲 OPENING...';
+            document.getElementById('prizeDisplay').textContent = '🎰 Opening chest...';
+
+            try {
+                const response = await fetch(`${API_URL}/api/play`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ address: currentAddress })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    document.getElementById('prizeDisplay').textContent = `❌ ${data.error}`;
+                    document.getElementById('prizeDisplay').className = 'prize-display lose';
+                    btn.textContent = '🔓 OPEN CHEST';
+                    btn.disabled = false;
+                    return;
+                }
+
+                // Display prize
+                const prize = data.prize;
+                const prizeDisplay = document.getElementById('prizeDisplay');
+                
+                if (prize.amount > 0) {
+                    prizeDisplay.innerHTML = `
+                        <span class="prize-emoji">${prize.emoji}</span>
+                        <div>
+                            <div style="font-size: 24px; font-weight: 700;">${prize.name}</div>
+                            <div class="prize-amount">+${prize.amount} DORK</div>
+                            ${data.txid ? `<div style="font-size: 12px; color: #666; margin-top: 5px;">TX: ${data.txid.substring(0, 20)}...</div>` : ''}
+                        </div>
+                    `;
+                    prizeDisplay.className = 'prize-display win';
+                    
+                    // Animate chest
+                    document.getElementById('chestBox').classList.add('opened');
+                    setTimeout(() => {
+                        document.getElementById('chestBox').classList.remove('opened');
+                    }, 3000);
+                    
+                } else {
+                    prizeDisplay.innerHTML = `
+                        <span class="prize-emoji">😢</span>
+                        <div>
+                            <div style="font-size: 20px;">${prize.name}</div>
+                            <div style="color: #666;">Better luck next time!</div>
+                        </div>
+                    `;
+                    prizeDisplay.className = 'prize-display lose';
+                }
+
+                // Update status
+                document.getElementById('status').textContent = '✅ Play recorded! Come back tomorrow!';
+                document.getElementById('status').className = 'status-text';
+                canPlay = false;
+                btn.disabled = true;
+                btn.textContent = '🔓 OPEN CHEST';
+
+                // Refresh stats
+                loadStats();
+
+            } catch (error) {
+                console.error('Play error:', error);
+                document.getElementById('prizeDisplay').textContent = '❌ Error opening chest. Please try again.';
+                document.getElementById('prizeDisplay').className = 'prize-display lose';
+                btn.textContent = '🔓 OPEN CHEST';
+                btn.disabled = false;
+            }
+        }
+
+        // ===== Load stats =====
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_URL}/api/stats`);
+                const data = await response.json();
+                
+                document.getElementById('todayPlays').textContent = data.totalPlaysToday || 0;
+                document.getElementById('totalPlayers').textContent = data.totalUniquePlayers || 0;
+                document.getElementById('resetTime').textContent = data.nextReset || '12:00 UTC';
+            } catch (error) {
+                console.error('Stats error:', error);
+            }
+        }
+
+        // ===== Auto-check when address is pasted =====
+        document.getElementById('walletAddress').addEventListener('paste', function() {
+            setTimeout(() => {
+                currentAddress = this.value.trim();
+                if (currentAddress && currentAddress.length >= 30) checkStatus();
+            }, 100);
+        });
+
+        // ===== Enter key to open chest =====
+        document.getElementById('walletAddress').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                startLotto();
+            }
+        });
+
+        // ===== Load on page start =====
+        loadStats();
+        
+        // Auto-check every 30 seconds
+        setInterval(() => {
+            if (currentAddress && currentAddress.length >= 30) {
+                checkStatus();
+            }
+        }, 30000);
+
+        console.log('🎰 Dorkwin Daily Lotto loaded! (FREE TO PLAY)');
+    </script>
+</body>
+</html>
