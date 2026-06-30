@@ -11,7 +11,7 @@ server=1
 rpcport=22555
 rpcuser=your_user
 rpcpassword=Your_pass
-4. In NODE.JS you need AXIOS, CORS installed, e.g. run npm install axios
+4. In NODE.JS you need AXIOS, EXPRESS, CORS etc. installed, e.g. run npm install axios
 5. You can then run your backend script dorkwin_backend.js with NODE.JS - node dorkwin_backend.js
 6. You need to open port 3000 so your Server is available outside
 7. You can host the frontend index.html in any hosting.
