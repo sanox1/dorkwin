@@ -14,8 +14,13 @@ app.use(express.static('public'));
 
 // RPC Configuration
 const RPC_URL = 'http://127.0.0.1:22555';
-const RPC_USER = 'YOUR_USER';
-const RPC_PASS = 'YOUR_PASS';
+const RPC_USER = 'SOMEUSER';
+const RPC_PASS = 'SOMEPASS';
+
+// Telegram Configuration
+const TELEGRAM_BOT_TOKEN = 'SOMETOKEN';
+const TELEGRAM_CHAT_ID = 'SOMECHATID';
+const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
 
 // Lotto Configuration
 const DATA_FILE = path.join(__dirname, 'lotto_data.json');
@@ -31,6 +36,31 @@ const PRIZES = [
 ];
 
 // ===== Helper Functions =====
+
+// Validate Dorkcoin address format - EXACTLY 34 characters, starts with 'D'
+function isValidDorkcoinAddress(address) {
+    // Must be a string
+    if (!address || typeof address !== 'string') return false;
+    
+    // Trim whitespace
+    address = address.trim();
+    
+    // Must be exactly 34 characters (D + 33 alphanumeric)
+    if (address.length !== 34) return false;
+    
+    // Must start with 'D'
+    if (!address.startsWith('D')) return false;
+    
+    // Check if it contains only valid characters (alphanumeric)
+    const validChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    for (let i = 0; i < address.length; i++) {
+        if (!validChars.includes(address[i])) {
+            return false;
+        }
+    }
+    
+    return true;
+}
 
 // Generic RPC caller
 async function callRPC(method, params = []) {
@@ -49,12 +79,33 @@ async function callRPC(method, params = []) {
         });
         
         if (response.data.error) {
+            // Check if it's an invalid address error
+            const errorMsg = response.data.error.message || '';
+            if (errorMsg.includes('Invalid address') || errorMsg.includes('invalid address')) {
+                const customError = new Error('Invalid Dorkcoin wallet address');
+                customError.isInvalidAddress = true;
+                throw customError;
+            }
             throw new Error(response.data.error.message);
         }
         return response.data.result;
     } catch (error) {
         console.error('RPC Error:', error.message);
         throw error;
+    }
+}
+
+// ===== Telegram Notification Function =====
+async function sendTelegramNotification(message) {
+    try {
+        await axios.post(`${TELEGRAM_API}/sendMessage`, {
+            chat_id: TELEGRAM_CHAT_ID,
+            text: message,
+            parse_mode: 'HTML'
+        });
+        console.log('✅ Telegram notification sent');
+    } catch (error) {
+        console.error('❌ Failed to send Telegram notification:', error.message);
     }
 }
 
@@ -100,6 +151,9 @@ function performReset() {
     data.lastReset = new Date().toISOString();
     saveLottoData(data);
     console.log('🔄 Daily reset performed at 12:00 UTC');
+    
+    // Send reset notification to Telegram
+    sendTelegramNotification(`🔄 <b>Daily Reset Completed</b>\n\nAll players can now play again! 🎰\nTime: ${new Date().toUTCString()}`);
 }
 
 // Check if user already played today
@@ -138,11 +192,39 @@ async function sendPrize(userAddress, amount, prizeName) {
             return { txid: null, message: 'No prize to send' };
         }
         
+        // Validate address first
+        if (!isValidDorkcoinAddress(userAddress)) {
+            const error = new Error('Invalid Dorkcoin wallet address format. Must be exactly 34 characters starting with "D"');
+            error.isInvalidAddress = true;
+            throw error;
+        }
+        
         const txid = await callRPC('sendtoaddress', [userAddress, amount]);
-        console.log(`💰 Sent ${amount} DORK to ${userAddress} for ${prizeName}`);
+        const message = `💰 Sent ${amount} DORK to ${userAddress} for ${prizeName}`;
+        console.log(message);
+        
+        // Send to Telegram
+        const telegramMessage = `🎰 <b>WINNER!</b>\n\n` +
+                               `🏆 Prize: <b>${prizeName}</b>\n` +
+                               `💲 Amount: <b>${amount} DORK</b>\n` +
+                               `👤 Address: <code>${userAddress}</code>\n` +
+                               `🔗 TXID: <code>${txid}</code>\n` +
+                               `⏰ Time: ${new Date().toUTCString()}`;
+        
+        await sendTelegramNotification(telegramMessage);
+        
         return { txid, message: 'Prize sent successfully!' };
     } catch (error) {
         console.error('Error sending prize:', error);
+        
+        // Don't send Telegram notification for invalid addresses
+        if (!error.isInvalidAddress) {
+            await sendTelegramNotification(`❌ <b>Prize Sending Failed</b>\n\n` +
+                                          `Prize: ${prizeName}\n` +
+                                          `Amount: ${amount} DORK\n` +
+                                          `Address: <code>${userAddress}</code>\n` +
+                                          `Error: ${error.message}`);
+        }
         throw error;
     }
 }
@@ -153,10 +235,20 @@ async function sendPrize(userAddress, amount, prizeName) {
 app.get('/api/balance/:address', async (req, res) => {
     try {
         const address = req.params.address;
+        
+        // Validate address
+        if (!isValidDorkcoinAddress(address)) {
+            return res.status(400).json({ error: 'Invalid Dorkcoin wallet address format. Must be exactly 34 characters starting with "D"' });
+        }
+        
         const balance = await callRPC('getreceivedbyaddress', [address, 6]);
         res.json({ address, balance });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        if (error.isInvalidAddress) {
+            res.status(400).json({ error: 'Invalid Dorkcoin wallet address format. Must be exactly 34 characters starting with "D"' });
+        } else {
+            res.status(500).json({ error: error.message });
+        }
     }
 });
 
@@ -164,6 +256,16 @@ app.get('/api/balance/:address', async (req, res) => {
 app.get('/api/canplay/:address', async (req, res) => {
     try {
         const address = req.params.address;
+        
+        // Validate address
+        if (!isValidDorkcoinAddress(address)) {
+            return res.status(400).json({ 
+                error: 'Invalid Dorkcoin wallet address format. Must be exactly 34 characters starting with "D"',
+                canPlay: false,
+                hasPlayed: false,
+                message: '❌ Invalid wallet address! Must be exactly 34 characters starting with "D"'
+            });
+        }
         
         // Check daily reset
         if (needsReset()) {
@@ -191,6 +293,14 @@ app.post('/api/play', async (req, res) => {
             return res.status(400).json({ error: 'Wallet address required' });
         }
         
+        // Validate address format
+        if (!isValidDorkcoinAddress(address)) {
+            return res.status(400).json({ 
+                error: 'Invalid Dorkcoin wallet address format. Must be exactly 34 characters starting with "D"',
+                friendlyMessage: '❌ Invalid wallet address! Must be exactly 34 characters starting with "D"'
+            });
+        }
+        
         // Check daily reset
         if (needsReset()) {
             performReset();
@@ -199,7 +309,8 @@ app.post('/api/play', async (req, res) => {
         // Check if already played
         if (hasPlayedToday(address)) {
             return res.status(400).json({ 
-                error: 'Already played today! Come back tomorrow at 12:00 UTC!' 
+                error: 'Already played today! Come back tomorrow at 12:00 UTC!',
+                friendlyMessage: '⏳ Already played today! Come back tomorrow at 12:00 UTC!'
             });
         }
         
@@ -213,6 +324,12 @@ app.post('/api/play', async (req, res) => {
         let txResult = null;
         if (prize.amount > 0) {
             txResult = await sendPrize(address, prize.amount, prize.name);
+        } else {
+            // Send "No Luck" notification to Telegram
+            await sendTelegramNotification(`😢 <b>No Luck!</b>\n\n` +
+                                          `👤 Address: <code>${address}</code>\n` +
+                                          `⏰ Time: ${new Date().toUTCString()}\n\n` +
+                                          `Better luck tomorrow! 🍀`);
         }
         
         res.json({
@@ -224,7 +341,19 @@ app.post('/api/play', async (req, res) => {
         
     } catch (error) {
         console.error('Play error:', error);
-        res.status(500).json({ error: error.message });
+        
+        // Handle invalid address error specifically
+        if (error.isInvalidAddress) {
+            return res.status(400).json({ 
+                error: 'Invalid Dorkcoin wallet address',
+                friendlyMessage: '❌ Invalid wallet address! Must be exactly 34 characters starting with "D"'
+            });
+        }
+        
+        res.status(500).json({ 
+            error: error.message,
+            friendlyMessage: '❌ An error occurred. Please try again later.'
+        });
     }
 });
 
@@ -245,9 +374,44 @@ app.get('/api/stats', async (req, res) => {
     }
 });
 
+// 5. Validate address endpoint (for frontend)
+app.post('/api/validate-address', async (req, res) => {
+    try {
+        const { address } = req.body;
+        
+        if (!address) {
+            return res.status(400).json({ valid: false, message: 'Address required' });
+        }
+        
+        const isValid = isValidDorkcoinAddress(address);
+        res.json({ 
+            valid: isValid,
+            message: isValid ? '✅ Valid Dorkcoin address' : '❌ Invalid Dorkcoin address. Must be exactly 34 characters starting with "D"'
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 6. Test Telegram connection (optional endpoint)
+app.get('/api/test-telegram', async (req, res) => {
+    try {
+        await sendTelegramNotification('✅ <b>Dorkwin Lotto Bot is online!</b>\n\nServer is running and notifications are working! 🎰');
+        res.json({ success: true, message: 'Telegram notification sent!' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Start server
 app.listen(PORT, () => {
     console.log(`🎰 Dorkwin Daily Lotto API running at http://localhost:${PORT}`);
     console.log(`🔄 Daily reset at 12:00 UTC`);
     console.log(`📊 Prize tiers: ${PRIZES.length} levels`);
+    console.log(`🤖 Telegram bot enabled`);
+    
+    // Send startup notification
+    sendTelegramNotification(`🚀 <b>Dorkwin Lotto Bot Started!</b>\n\n` +
+                            `Server is running and ready to process plays! 🎰\n` +
+                            `Time: ${new Date().toUTCString()}`);
 });
