@@ -29,3 +29,14 @@ How Frontend HTML Works:
 7. Play recorded - user can't play again until tomorrow
 
 DISCLAIMER: THIS IS MADE JUST FOR FUN AND I AM NOT RESPONSIBLE FOR ANY STOLEN FUNDS / FINANCIAL LOSS! IF YOU DEPLOY AND USE THIS SCRIPT YOU SHOULD NEVER KEEP A LOT OF $DORK IN THAT DORKCORE NODE.
+
+This project is open-source and contributions are welcome!
+
+Fork this repository
+Create a feature branch: git checkout -b feature/your-feature
+Commit your changes: git commit -m 'Add some feature'
+Push to the branch: git push origin feature/your-feature
+Open a Pull Request
+Please open an Issue first for major changes.
+
+Licence: This project is open source
