@@ -1,4 +1,4 @@
-Daily DORK lotto app, play on the dorkcoin blockchain.
+Daily DORK lotto app with telegram transaction monitoring, play on the dorkcoin blockchain.
  
 https://dorkexplorer.com/ - explorer, 
 https://coin.dorkcoingames.com/ - website,
