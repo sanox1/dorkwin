@@ -32,11 +32,12 @@ DISCLAIMER: THIS IS MADE JUST FOR FUN AND I AM NOT RESPONSIBLE FOR ANY STOLEN FU
 
 This project is open-source and contributions are welcome!
 
-Fork this repository
-Create a feature branch: git checkout -b feature/your-feature
-Commit your changes: git commit -m 'Add some feature'
-Push to the branch: git push origin feature/your-feature
-Open a Pull Request
+1.Fork this repository
+2.Create a feature branch: git checkout -b feature/your-feature
+3.Commit your changes: git commit -m 'Add some feature'
+4.Push to the branch: git push origin feature/your-feature
+5.Open a Pull Request
+
 Please open an Issue first for major changes.
 
 Licence: This project is open source
