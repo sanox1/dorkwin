@@ -12,9 +12,12 @@ rpcport=22555
 rpcuser=your_user
 rpcpassword=Your_pass
 4. In NODE.JS you need AXIOS, EXPRESS, CORS etc. installed, e.g. run npm install axios
-5. You can then run your backend script dorkwin_backend.js with NODE.JS - node dorkwin_backend.js
-6. You need to open port 3000 so your Server is available outside
-7. You can host the frontend index.html in any hosting.
+5. Create a Telegram bot via @BotFather to get a bot token
+6. Get your chat ID (you can message your bot and use https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates) "chat": { "id": THIS_IS_IT, "first_name": "somename", "username": "someuser", "type": "private" }
+7. paste your bot's token and chatID to the backend
+8. You can then run your backend script dorkwin_backend.js with NODE.JS - node dorkwin_backend.js
+9. You need to open port 3000 so your Server is available outside
+10. You can host the frontend index.html in any hosting. Change your API_URL to match your dorkcore server_ip:3000
    
 How Frontend HTML Works:  
 1. User enters their Dorkcoin address
