@@ -64,6 +64,8 @@
             font-size: 16px;
             transition: all 0.3s;
             background: #f8f9fa;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 0.5px;
         }
 
         .input-group input:focus {
@@ -71,6 +73,37 @@
             border-color: #f7971e;
             background: white;
             box-shadow: 0 0 0 4px rgba(247, 151, 30, 0.1);
+        }
+
+        .input-group input.valid {
+            border-color: #28a745;
+            background: #f0fff0;
+        }
+
+        .input-group input.invalid {
+            border-color: #dc3545;
+            background: #fff0f0;
+        }
+
+        .address-helper {
+            font-size: 12px;
+            margin-top: 8px;
+            color: #666;
+            min-height: 20px;
+        }
+
+        .address-helper.valid {
+            color: #28a745;
+        }
+
+        .address-helper.invalid {
+            color: #dc3545;
+        }
+
+        .address-length {
+            font-size: 11px;
+            color: #999;
+            margin-top: 4px;
         }
 
         .chest-box {
@@ -168,12 +201,15 @@
         .status-text {
             margin-top: 15px;
             font-size: 13px;
-            color: #2e7d32;
             font-weight: 600;
             word-break: break-all;
             padding: 10px;
-            background: #e8f5e9;
             border-radius: 8px;
+        }
+
+        .status-text.success {
+            background: #e8f5e9;
+            color: #2e7d32;
         }
 
         .status-text.error {
@@ -184,6 +220,11 @@
         .status-text.info {
             background: #e3f2fd;
             color: #0d47a1;
+        }
+
+        .status-text.warning {
+            background: #fff3e0;
+            color: #e65100;
         }
 
         .rules {
@@ -271,7 +312,9 @@
         <!-- Wallet Input -->
         <div class="input-group">
             <label>💰 Wallet Address</label>
-            <input type="text" id="walletAddress" placeholder="Enter your Dorkcoin address">
+            <input type="text" id="walletAddress" placeholder="Enter your Dorkcoin address (e.g., D...)" maxlength="34">
+            <div class="address-helper" id="addressHelper">🔑 Enter a valid Dorkcoin address (exactly 34 characters, starts with "D")</div>
+            <div class="address-length" id="addressLength">Length: 0 / 34 characters</div>
         </div>
 
         <!-- Stats -->
@@ -305,7 +348,7 @@
         </div>
 
         <!-- Status -->
-        <div class="status-text" id="status">
+        <div class="status-text info" id="status">
             👤 Waiting for wallet address...
         </div>
 
@@ -344,27 +387,92 @@
 
     <script>
         // ===== CONFIGURATION =====
-        // Change this to your server's IP and port
-        const API_URL = 'http://192.168.0.1:3000'; // <-- UPDATE THIS
+        const API_URL = 'http://CHANGEME:3000'; //change this
         
         let currentAddress = '';
         let canPlay = false;
+        let isValidAddress = false;
 
-        // ===== Check connection status =====
-        document.getElementById('walletAddress').addEventListener('input', async function() {
+        // ===== Validate Dorkcoin Address (Frontend) - EXACTLY 34 characters =====
+        function validateDorkcoinAddress(address) {
+            if (!address || typeof address !== 'string') return false;
+            address = address.trim();
+            
+            // Must be exactly 34 characters
+            if (address.length !== 34) return false;
+            
+            // Must start with 'D'
+            if (!address.startsWith('D')) return false;
+            
+            // Check if it contains only alphanumeric characters
+            const validChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            for (let i = 0; i < address.length; i++) {
+                if (!validChars.includes(address[i])) {
+                    return false;
+                }
+            }
+            
+            return true;
+        }
+
+        // ===== Address input handler =====
+        document.getElementById('walletAddress').addEventListener('input', function() {
+            // Remove any whitespace
+            this.value = this.value.replace(/\s/g, '');
+            
             currentAddress = this.value.trim();
-            if (currentAddress && currentAddress.length >= 30) {
-                await checkStatus();
-            } else {
+            const helper = document.getElementById('addressHelper');
+            const lengthDisplay = document.getElementById('addressLength');
+            const input = this;
+            
+            // Update character count
+            lengthDisplay.textContent = `Length: ${currentAddress.length} / 34 characters`;
+            
+            if (currentAddress.length === 0) {
+                helper.textContent = '🔑 Enter a valid Dorkcoin address (exactly 34 characters, starts with "D")';
+                helper.className = 'address-helper';
+                input.className = '';
+                isValidAddress = false;
                 document.getElementById('status').textContent = '👤 Enter a valid Dorkcoin address';
-                document.getElementById('status').className = 'status-text';
+                document.getElementById('status').className = 'status-text info';
+                document.getElementById('openBtn').disabled = true;
+                return;
+            }
+            
+            // Check if address is complete (34 chars)
+            if (currentAddress.length === 34) {
+                // Validate format
+                if (validateDorkcoinAddress(currentAddress)) {
+                    helper.textContent = '✅ Valid Dorkcoin address format';
+                    helper.className = 'address-helper valid';
+                    input.className = 'valid';
+                    isValidAddress = true;
+                    document.getElementById('openBtn').disabled = false;
+                    checkStatus();
+                } else {
+                    helper.textContent = '❌ Invalid Dorkcoin address. Must start with "D" and contain only alphanumeric characters.';
+                    helper.className = 'address-helper invalid';
+                    input.className = 'invalid';
+                    isValidAddress = false;
+                    document.getElementById('status').textContent = '❌ Invalid wallet address format';
+                    document.getElementById('status').className = 'status-text error';
+                    document.getElementById('openBtn').disabled = true;
+                }
+            } else {
+                // Address is incomplete
+                helper.textContent = `⏳ Enter exactly 34 characters (${currentAddress.length}/34)`;
+                helper.className = 'address-helper';
+                input.className = '';
+                isValidAddress = false;
+                document.getElementById('status').textContent = `⏳ Enter exactly 34 characters (${currentAddress.length}/34)`;
+                document.getElementById('status').className = 'status-text info';
                 document.getElementById('openBtn').disabled = true;
             }
         });
 
         // ===== Check if user can play =====
         async function checkStatus() {
-            if (!currentAddress || currentAddress.length < 30) return;
+            if (!currentAddress || !isValidAddress) return;
             
             try {
                 const response = await fetch(`${API_URL}/api/canplay/${currentAddress}`);
@@ -372,14 +480,22 @@
                 
                 const statusEl = document.getElementById('status');
                 
+                if (data.error) {
+                    statusEl.textContent = `❌ ${data.error}`;
+                    statusEl.className = 'status-text error';
+                    canPlay = false;
+                    document.getElementById('openBtn').disabled = true;
+                    return;
+                }
+                
                 if (data.canPlay) {
                     statusEl.textContent = '✅ Ready to open the chest! 🎰';
-                    statusEl.className = 'status-text';
+                    statusEl.className = 'status-text success';
                     canPlay = true;
                     document.getElementById('openBtn').disabled = false;
                 } else if (data.hasPlayed) {
                     statusEl.textContent = '⏳ Already played today! Come back tomorrow at 12:00 UTC!';
-                    statusEl.className = 'status-text error';
+                    statusEl.className = 'status-text warning';
                     canPlay = false;
                     document.getElementById('openBtn').disabled = true;
                 } else {
@@ -398,8 +514,8 @@
 
         // ===== Open Chest =====
         async function startLotto() {
-            if (!currentAddress || currentAddress.length < 30) {
-                alert('Please enter a valid Dorkcoin address first!');
+            if (!currentAddress || !isValidAddress) {
+                alert('Please enter a valid Dorkcoin address first! Must be exactly 34 characters starting with "D"');
                 return;
             }
 
@@ -416,6 +532,7 @@
             btn.disabled = true;
             btn.textContent = '🎲 OPENING...';
             document.getElementById('prizeDisplay').textContent = '🎰 Opening chest...';
+            document.getElementById('prizeDisplay').className = 'prize-display';
 
             try {
                 const response = await fetch(`${API_URL}/api/play`, {
@@ -427,10 +544,18 @@
                 const data = await response.json();
 
                 if (data.error) {
-                    document.getElementById('prizeDisplay').textContent = `❌ ${data.error}`;
+                    // Use friendly message if available, otherwise show error
+                    const errorMsg = data.friendlyMessage || data.error;
+                    document.getElementById('prizeDisplay').textContent = `❌ ${errorMsg}`;
                     document.getElementById('prizeDisplay').className = 'prize-display lose';
                     btn.textContent = '🔓 OPEN CHEST';
                     btn.disabled = false;
+                    
+                    // If invalid address, update status
+                    if (data.error.includes('Invalid')) {
+                        document.getElementById('status').textContent = '❌ Invalid wallet address - please check and try again';
+                        document.getElementById('status').className = 'status-text error';
+                    }
                     return;
                 }
 
@@ -468,7 +593,7 @@
 
                 // Update status
                 document.getElementById('status').textContent = '✅ Play recorded! Come back tomorrow!';
-                document.getElementById('status').className = 'status-text';
+                document.getElementById('status').className = 'status-text success';
                 canPlay = false;
                 btn.disabled = true;
                 btn.textContent = '🔓 OPEN CHEST';
@@ -502,8 +627,8 @@
         // ===== Auto-check when address is pasted =====
         document.getElementById('walletAddress').addEventListener('paste', function() {
             setTimeout(() => {
-                currentAddress = this.value.trim();
-                if (currentAddress && currentAddress.length >= 30) checkStatus();
+                // Trigger input event to validate
+                this.dispatchEvent(new Event('input'));
             }, 100);
         });
 
@@ -519,12 +644,13 @@
         
         // Auto-check every 30 seconds
         setInterval(() => {
-            if (currentAddress && currentAddress.length >= 30) {
+            if (currentAddress && isValidAddress) {
                 checkStatus();
             }
         }, 30000);
 
         console.log('🎰 Dorkwin Daily Lotto loaded! (FREE TO PLAY)');
+        console.log('📝 Dorkcoin addresses must be exactly 34 characters, starting with "D"');
     </script>
 </body>
 </html>
