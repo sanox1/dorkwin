@@ -351,7 +351,7 @@ $captchaQuestion = $_SESSION['captcha_question'] ?? '2 + 3';
 
     <script>
         // ===== CONFIGURATION =====
-        const API_URL = 'http://77.85.135.126:3001'; // Your internal backend
+        const API_URL = 'http://YOUR_IP:3001'; // Your internal backend
         let captchaTimerInterval = null;
         let captchaExpiryTime = <?php echo time() + 300; ?>;
 
