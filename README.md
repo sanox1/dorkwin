@@ -38,6 +38,5 @@ This project is open-source and contributions are welcome!
 4.Push to the branch: git push origin feature/your-feature
 5.Open a Pull Request
 
-Please open an Issue first for major changes.
-
+ 
 Licence: This project is open source
