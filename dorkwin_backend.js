@@ -3,23 +3,149 @@ const axios = require('axios');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 
 const app = express();
-const PORT = 3000;
+const PORT = 3001;
+
+// ===== RATE LIMITING CONFIGURATION =====
+
+// General API rate limit (all endpoints)
+const generalLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 100, // 100 requests per minute
+    message: {
+        error: 'Too many requests, please slow down',
+        friendlyMessage: '⏳ Too many requests! Please wait a moment.'
+    },
+    standardHeaders: true, // Return rate limit info in headers
+    legacyHeaders: false,
+    skipSuccessfulRequests: false, // Count all requests
+});
+
+// Strict rate limit for sensitive endpoints (play, send, balance)
+const strictLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 10, // 10 requests per minute for sensitive operations
+    message: {
+        error: 'Too many play attempts, please wait',
+        friendlyMessage: '⏳ Too many attempts! Please wait a moment.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skipSuccessfulRequests: false,
+    // Key generator to rate-limit by IP (or combination of IP + address)
+    keyGenerator: (req) => {
+        // Use IP + address for stricter limits per wallet
+        const address = req.body.address || req.params.address || 'unknown';
+		const ipKey = ipKeyGenerator(req.ip);
+
+        return `${req.ip}-${address}`;
+    }
+});
+
+// ===== PER-ADDRESS RATE LIMITING =====
+
+// Track plays per address per day with rate limiting
+const addressPlayTracker = new Map(); // { key: { count, timestamp } }
+
+// Clean up old entries every hour (prevents memory leaks)
+setInterval(() => {
+    const now = Date.now();
+    const oneDayAgo = now - (24 * 60 * 60 * 1000);
+    for (const [key, value] of addressPlayTracker.entries()) {
+        if (value.timestamp < oneDayAgo) {
+            addressPlayTracker.delete(key);
+        }
+    }
+}, 60 * 60 * 1000); // Clean up every hour
+
+// Per-address limit middleware (combines with existing daily play check)
+const addressLimitMiddleware = async (req, res, next) => {
+    const address = req.body.address || req.params.address;
+    
+    if (!address) {
+        return next(); // Skip if no address provided
+    }
+    
+    // Validate address format first
+    if (!isValidDorkcoinAddress(address)) {
+        return res.status(400).json({
+            error: 'Invalid Dorkcoin wallet address format',
+            friendlyMessage: '❌ Invalid wallet address! Must be exactly 34 characters starting with "D"'
+        });
+    }
+    
+    const today = new Date().toISOString().split('T')[0];
+    const key = `${address}-${today}`;
+    const now = Date.now();
+    
+    // Check if address already has a play recorded for today (from file)
+    const hasPlayed = hasPlayedToday(address);
+    if (hasPlayed) {
+        return res.status(400).json({
+            error: 'Already played today! Come back tomorrow at 12:00 UTC!',
+            friendlyMessage: '⏳ Already played today! Come back tomorrow at 12:00 UTC!'
+        });
+    }
+    
+    // Check memory-based rate limit (additional protection against race conditions)
+    if (addressPlayTracker.has(key)) {
+        const data = addressPlayTracker.get(key);
+        const timeSinceLastAttempt = (now - data.timestamp) / 1000; // seconds
+        
+        // Allow retry after 5 seconds (prevents accidental double-clicks)
+        if (timeSinceLastAttempt < 5 && data.count >= 1) {
+            return res.status(429).json({
+                error: 'Too many attempts, please wait',
+                friendlyMessage: `⏳ Please wait ${Math.ceil(5 - timeSinceLastAttempt)} seconds before trying again`
+            });
+        }
+        
+        // Update existing entry
+        addressPlayTracker.set(key, {
+            count: data.count + 1,
+            timestamp: now
+        });
+    } else {
+        // Create new entry
+        addressPlayTracker.set(key, {
+            count: 1,
+            timestamp: now
+        });
+    }
+    
+    next();
+};
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
+// Apply general rate limit to all routes
+app.use(generalLimiter);
+
+// ===== APPLY STRICT LIMITS TO SPECIFIC ENDPOINTS =====
+
+// API endpoints with strict limiting
+app.post('/api/play', strictLimiter); // Most important
+app.post('/api/validate-address', strictLimiter);
+app.get('/api/balance/:address', strictLimiter);
+
+// Stats endpoint can use general limiter (or no strict limit)
+app.get('/api/stats', generalLimiter);
+app.get('/api/canplay/:address', generalLimiter);
+app.get('/api/test-telegram', strictLimiter);
+
 // RPC Configuration
 const RPC_URL = 'http://127.0.0.1:22555';
-const RPC_USER = 'SOMEUSER';
-const RPC_PASS = 'SOMEPASS';
+const RPC_USER = 'YOUR_USER';
+const RPC_PASS = 'YOUR_PASS';
 
 // Telegram Configuration
-const TELEGRAM_BOT_TOKEN = 'SOMETOKEN';
-const TELEGRAM_CHAT_ID = 'SOMECHATID';
+const TELEGRAM_BOT_TOKEN = 'YOUR_TOKEN';
+const TELEGRAM_CHAT_ID = 'YOUR_CHAT_ID';
 const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
 
 // Lotto Configuration
@@ -284,8 +410,8 @@ app.get('/api/canplay/:address', async (req, res) => {
     }
 });
 
-// 3. Play the lotto (OPEN CHEST)
-app.post('/api/play', async (req, res) => {
+// 3. Play the lotto (OPEN CHEST) - WITH PER-ADDRESS LIMITING
+app.post('/api/play', strictLimiter, addressLimitMiddleware, async (req, res) => {
     try {
         const { address } = req.body;
         
@@ -293,7 +419,8 @@ app.post('/api/play', async (req, res) => {
             return res.status(400).json({ error: 'Wallet address required' });
         }
         
-        // Validate address format
+        // Note: Address validation is now handled in addressLimitMiddleware
+        // But we still need to validate here in case middleware was bypassed
         if (!isValidDorkcoinAddress(address)) {
             return res.status(400).json({ 
                 error: 'Invalid Dorkcoin wallet address format. Must be exactly 34 characters starting with "D"',
@@ -306,7 +433,7 @@ app.post('/api/play', async (req, res) => {
             performReset();
         }
         
-        // Check if already played
+        // Double-check if already played (in case of race condition)
         if (hasPlayedToday(address)) {
             return res.status(400).json({ 
                 error: 'Already played today! Come back tomorrow at 12:00 UTC!',
