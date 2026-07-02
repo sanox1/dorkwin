@@ -17,7 +17,7 @@ rpcpassword=Your_pass
 7. replace TELEGRAM_CHAT_ID and TELEGRAM_BOT_TOKEN and paste your bot's token and chatID into the backend js file. Replace RPC_USER and RPC_PASS with your own into he backend js file. 
 8. You can now run your backend script dorkwin_backend.js with NODE.JS - node dorkwin_backend.js
 9. You need to open port 3000 (or 3001 if busy) so your Server is available outside
-10. You can host the frontend index.html in any hosting. Change your API_URL to match your dorkcore server_ip:3000(3001)
+10. You can host the frontend index in any hosting. Change your API_URL to match your dorkcore server_ip:3000(3001)
    
 How Frontend HTML Works:  
 1. User enters their Dorkcoin address
