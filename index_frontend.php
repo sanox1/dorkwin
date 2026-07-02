@@ -69,6 +69,17 @@ $captchaQuestion = $_SESSION['captcha_question'] ?? '2 + 3';
             margin-bottom: 10px;
         }
         .subtitle { color: #666; margin-bottom: 30px; font-size: 14px; }
+        
+        /* Badge container - flex layout for FREE and T&C side by side */
+        .badge-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        
         .free-badge {
             display: inline-block;
             background: #4CAF50;
@@ -77,8 +88,26 @@ $captchaQuestion = $_SESSION['captcha_question'] ?? '2 + 3';
             border-radius: 20px;
             font-size: 12px;
             font-weight: 700;
-            margin-bottom: 15px;
         }
+        
+        /* T&C Button - same style as free-badge */
+        .tnc-badge {
+            display: inline-block;
+            background: #6c757d;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.3s ease;
+            border: none;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .tnc-badge:hover {
+            background: #5a6268;
+        }
+        
         .input-group { margin: 20px 0; }
         .input-group label { display: block; font-weight: 600; color: #333; margin-bottom: 8px; }
         .input-group input {
@@ -281,13 +310,123 @@ $captchaQuestion = $_SESSION['captcha_question'] ?? '2 + 3';
             50% { transform: scale(1.05); }
             100% { transform: scale(1); }
         }
+
+        /* ===== MODAL STYLES ===== */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.7);
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .modal-content-privacy {
+            background-color: #000000;
+            margin: 5% auto;
+            padding: 25px;
+            border: 1px solid #888;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 750px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+            font-family: Arial, sans-serif;
+            max-height: 85vh;
+            overflow-y: auto;
+            color: #fff;
+        }
+        
+        .modal-content-privacy h1 {
+            font-size: 24px;
+            color: #FFD700;
+            margin: 0;
+            text-align: center;
+        }
+        
+        .modal-content-privacy header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #FFD700;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .modal-content-privacy header h1 {
+            flex: 1;
+            text-align: center;
+        }
+        
+        .close-button {
+            color: #aaa;
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+            line-height: 1;
+            padding: 0 5px;
+        }
+        
+        .close-button:hover {
+            color: #FF0000;
+        }
+        
+        .modal-body {
+            padding: 5px 0;
+        }
+        
+        .modal-body p {
+            margin: 12px 0;
+            line-height: 1.6;
+            font-size: 14px;
+            color: #ddd;
+            text-align: center;
+        }
+        
+        .modal-body p:last-child {
+            margin-bottom: 0;
+        }
+        
+        /* Scrollbar styling for modal */
+        .modal-content-privacy::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .modal-content-privacy::-webkit-scrollbar-track {
+            background: #1a1a1a;
+            border-radius: 4px;
+        }
+        
+        .modal-content-privacy::-webkit-scrollbar-thumb {
+            background: #FFD700;
+            border-radius: 4px;
+        }
+        
+        .modal-content-privacy::-webkit-scrollbar-thumb:hover {
+            background: #f0c800;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🎰 Dorkwin Daily Lotto</h1>
         <p class="subtitle">Open the treasure chest once a day and win $DORK!</p>
-        <div class="free-badge">🎁 FREE TO PLAY</div>
+        
+        <!-- Badge Container: FREE + T&C side by side -->
+        <div class="badge-container">
+            <span class="free-badge">🎁 FREE TO PLAY</span>
+            <button class="tnc-badge" onclick="openModal()">📜 T&C</button>
+        </div>
         
         <!-- Chest -->
         <div class="chest-box" id="chestBox">
@@ -334,6 +473,7 @@ $captchaQuestion = $_SESSION['captcha_question'] ?? '2 + 3';
             <div class="prize-tier"><span>🥦 Common</span><span>5 DORK (35.0%)</span></div>
             <div class="prize-tier" style="color:#666;"><span>😢 No Luck</span><span>0 DORK (31.5%)</span></div>
         </div>
+        <p class="subtitle">If you enjoy the dapp and want to keep the lotto alive donate some $DORK to D9MXQWvL15bU9Drbb1R6xEBrQv4bWABTd5</p>
         
         <!-- Ad Banner -->
         <div style="margin-top: 20px;">
@@ -349,9 +489,30 @@ $captchaQuestion = $_SESSION['captcha_question'] ?? '2 + 3';
         </div>
     </div>
 
+    <!-- ===== TERMS & CONDITIONS MODAL ===== -->
+    <div id="id02" class="modal">
+        <div class="modal-content-privacy">
+            <header>
+                <h1>Terms and Conditions</h1>
+                <span onclick="closeModal()" class="close-button">&times;</span>
+            </header>
+            <div class="modal-body">
+                <p align="center">Please read the following rules carefully before using.</p>
+                <p align="center">You agree to be of legal age in your country to partake in this program, and in all the cases your minimal age must be 18 years. Dorkwin is not available to the general public and is opened only to the qualified members of dorkwin.biz.ht, the use of this site is restricted to our members and to individuals personally invited by them. Every deposit is considered to be a private transaction between the dorkwin.biz.ht and its Member. This service is not available to residents of California, Washington, or any jurisdiction where online gaming with virtual currency convertible to value is restricted. By using this site, you certify you are not a resident of such jurisdictions.</p>
+                <p align="center">You agree that all information, communications, materials coming from dorkwin.biz.ht are unsolicited and must be kept private, confidential and protected from any disclosure. Moreover, the information, communications and materials contained herein are not to be regarded as an offer, nor a solicitation for investments in any jurisdiction which deems non-public offers or solicitations unlawful, nor to any person to whom it will be unlawful to make such offer or solicitation. All the data giving by a member to dorkwin.biz.ht will be only privately used and not disclosed to any third parties. dorkwin.biz.ht is not responsible or liable for any loss of data.</p>
+                <p align="center">As a private transaction, this program is exempt from the US Securities Act of 1933, the US Securities Exchange Act of 1934 and the US Investment Company Act of 1940 and all other rules, regulations and amendments thereof. We are not FDIC insured. We are not a licensed bank or a security firm.</p>
+                <p align="center">You agree to hold all principals and members harmless of any liability. You are investing at your own risk and you agree that a past performance is not an explicit guarantee for the same future performance. You agree that all information, communications and materials you will find on this site are intended to be regarded as an informational and educational matter and not an investment advice.</p>
+                <p align="center">We reserve the right to change the rules, commissions and rates of the program at any time and at our sole discretion without notice, especially in order to respect the integrity and security of the members' interests. You agree that it is your sole responsibility to review the current terms.</p>
+                <p align="center">dorkwin.biz.ht is not responsible or liable for any damages, losses and costs resulting from any violation of the conditions and terms and/or use of our website by a member. You guarantee to dorkwin.biz.ht that you will not use this site in any illegal way and you agree to respect your local, national and international laws.</p>
+                <p align="center">Don't post bad vote on Public Forums and at Gold Rating Site without contacting the administrator of our program FIRST. Maybe there was a technical problem with your transaction, so please always CLEAR the thing with the administrator. $DORK SHOULD BE EVALUATED BASED ON ITS OWN MERITS AND RISKS, AND ANY INVESTMENT DECISIONS SHOULD BE MADE AFTER CONDUCTING INDEPENDENT RESEARCH AND SEEKING PROFESSIONAL ADVICE. INVESTING IN CRYPTO CURRENCY IS SUBJECT TO MARKET RISK. INVEST RESPONSIBLY</p>
+                <p align="center">Multiple IPs, BOTs, VPNs, Proxies and 3rd party software or scripts use to increase balance by cheating are not allowed! Failure to comply with this will result in permanent ban from the webpage without notice! We will not tolerate SPAM or any type of UCE in this program. SPAM violators will be immediately and permanently removed from the program. If you do not agree with the above disclaimer, please do not go any further.</p>
+            </div>
+        </div>
+    </div>
+
     <script>
         // ===== CONFIGURATION =====
-        const API_URL = 'http://YOUR_IP:3001'; // Your internal backend
+        const API_URL = 'http://YOUR_BACKEND:PORT'; // Your internal backend
         let captchaTimerInterval = null;
         let captchaExpiryTime = <?php echo time() + 300; ?>;
 
@@ -363,6 +524,32 @@ $captchaQuestion = $_SESSION['captcha_question'] ?? '2 + 3';
         const chestBox = document.getElementById('chestBox');
         const captchaInput = document.getElementById('captchaInput');
         const captchaQuestion = document.getElementById('captchaQuestion');
+
+        // ===== MODAL FUNCTIONS =====
+        function openModal() {
+            document.getElementById("id02").style.display = "block";
+            document.body.style.overflow = "hidden"; // Prevent scrolling behind modal
+        }
+
+        function closeModal() {
+            document.getElementById("id02").style.display = "none";
+            document.body.style.overflow = "auto"; // Restore scrolling
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modalTerms = document.getElementById("id02");
+            if (event.target === modalTerms) {
+                closeModal();
+            }
+        };
+
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeModal();
+            }
+        });
 
         // ===== Show Message Helper with Auto-Hide =====
         function showMessage(text, type = 'info', duration = 8000) {
@@ -697,8 +884,6 @@ $captchaQuestion = $_SESSION['captcha_question'] ?? '2 + 3';
 
         console.log('🎰 Dorkwin Daily Lotto loaded!');
         console.log('🔒 CAPTCHA handled by PHP, game logic by Node.js');
-        console.log(`🌐 Backend API: ${API_URL}`);
-        console.log('✅ No cURL or file_get_contents needed!');
-    </script>
+     </script>
 </body>
 </html>
