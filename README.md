@@ -14,7 +14,7 @@ rpcpassword=Your_pass
 4. In NODE.JS you need AXIOS, EXPRESS, CORS etc. installed, e.g. run npm install axios
 5. Create a Telegram bot via @BotFather to get a bot token
 6. Get your chat ID (you can message your bot and use https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates) "chat": { "id": THIS_IS_IT, "first_name": "somename", "username": "someuser", "type": "private" }
-7. replace TELEGRAM_CHAT_ID and TELEGRAM_BOT_TOKEN and paste your bot's token and chatID into the backend js file. Replace RPC_USER and RPC_PASS with your own into he backend js file. 
+7. replace TELEGRAM_CHAT_ID and TELEGRAM_BOT_TOKEN and paste your bot's token and chatID into the backend js file. Replace RPC_USER and RPC_PASS with your own into the backend js file. Replace connectSrc with your internal ip where DORKCORE is. 
 8. You can now run your backend script dorkwin_backend.js with NODE.JS - node dorkwin_backend.js
 9. You need to open port 3000 (or 3001 if busy) so your Server is available outside
 10. You can host the frontend index in any hosting. Change your API_URL to match your dorkcore server_ip:3000(3001)
