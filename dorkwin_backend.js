@@ -4,9 +4,34 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
+const helmet = require('helmet');
+
 
 const app = express();
-const PORT = 3001;
+const PORT = 5501;
+
+// ===== SECURITY MIDDLEWARE =====
+// Use Helmet with sensible defaults
+app.use(helmet());
+
+// Customize Helmet for your API
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            // Allow your frontend domain to call the API
+            connectSrc: ["'self'", "http://your frontend domain:5501"],
+            // Disable unsafe inline for stricter security
+            scriptSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"], // Only if needed
+            imgSrc: ["'self'", "data:", "https:"],
+        },
+    },
+    // Allow cross-origin requests (you're using CORS already)
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    // Disable HSTS if you're not using HTTPS (optional)
+    hsts: false,
+}));
 
 // ===== RATE LIMITING CONFIGURATION =====
 
@@ -38,9 +63,8 @@ const strictLimiter = rateLimit({
     keyGenerator: (req) => {
         // Use IP + address for stricter limits per wallet
         const address = req.body.address || req.params.address || 'unknown';
-		const ipKey = ipKeyGenerator(req.ip);
-
-        return `${req.ip}-${address}`;
+        const ipKey = ipKeyGenerator(req.ip);
+	return `${req.ip}-${address}`;
     }
 });
 
@@ -140,12 +164,12 @@ app.get('/api/test-telegram', strictLimiter);
 
 // RPC Configuration
 const RPC_URL = 'http://127.0.0.1:22555';
-const RPC_USER = 'YOUR_USER';
-const RPC_PASS = 'YOUR_PASS';
+const RPC_USER = 'YOUR_RPC_USER';
+const RPC_PASS = 'YOUR_RPC_PASS';
 
 // Telegram Configuration
-const TELEGRAM_BOT_TOKEN = 'YOUR_TOKEN';
-const TELEGRAM_CHAT_ID = 'YOUR_CHAT_ID';
+const TELEGRAM_BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN';
+const TELEGRAM_CHAT_ID = 'YOUR_TELEGRAM_CHAT_ID';
 const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
 
 // Lotto Configuration
