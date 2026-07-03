@@ -1,8 +1,28 @@
 <?php
-// Start session safely
+// Start session with secure settings
 if (session_status() === PHP_SESSION_NONE) {
+    // Set secure cookie parameters BEFORE session_start()
+    session_set_cookie_params([
+        'lifetime' => 0, // Session cookie (browser close)
+        'path' => '/',
+        'domain' => '', // Current domain
+        'secure' => false, // Set to true if using HTTPS
+        'httponly' => true, // <-- THIS PREVENTS JavaScript access
+        'samesite' => 'Lax' // CSRF protection
+    ]);
+    
     session_start();
 }
+
+// ===== SECURITY HEADERS =====
+// Prevent clickjacking
+header('X-Frame-Options: DENY');
+
+// Modern CSP alternative
+header("Content-Security-Policy: frame-ancestors 'none'");
+// Other security headers (good practice)
+header('X-Content-Type-Options: nosniff');
+header('X-XSS-Protection: 1; mode=block');
 
 // ===== CAPTCHA Functions =====
 function generateCaptcha() {
