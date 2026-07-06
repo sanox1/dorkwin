@@ -442,6 +442,11 @@ $captchaQuestion = $_SESSION['captcha_question'] ?? '2 + 3';
         <h1>🎰 Dorkwin Daily Lotto</h1>
         <p class="subtitle">Open the treasure chest once a day and win $DORK!</p>
         
+		<p style="font-size: 14px; margin-top: -15px; margin-bottom: 20px;">
+			<a href="https://dorkcoingames.com/" target="_blank" style="color: #f7971e; text-decoration: none; font-weight: 500;">Dorkade</a> &nbsp;|&nbsp;
+			<a href="https://dorkcoingames.com/explorer" target="_blank" style="color: #f7971e; text-decoration: none; font-weight: 500;">Dorkcoin Explorer</a>
+        </p>
+		
         <!-- Badge Container: FREE + T&C side by side -->
         <div class="badge-container">
             <span class="free-badge">🎁 FREE TO PLAY</span>
@@ -494,7 +499,12 @@ $captchaQuestion = $_SESSION['captcha_question'] ?? '2 + 3';
             <div class="prize-tier" style="color:#666;"><span>😢 No Luck</span><span>0 DORK (31.5%)</span></div>
         </div>
         <p class="subtitle">If you enjoy the dapp and want to keep the lotto alive donate some $DORK to D9MXQWvL15bU9Drbb1R6xEBrQv4bWABTd5</p>
-        
+		
+		<div style="margin-top: 15px; font-size: 11px; color: #999; border-top: 1px solid #eee; padding-top: 15px;">
+			IP addresses are temporarily stored and deleted daily at 12:00 UTC. 
+			<a href="#" onclick="openModal(); return false;" style="color: #f7971e;">Privacy Policy</a>
+		</div>
+		
         <!-- Ad Banner -->
         <div style="margin-top: 20px;">
             <iframe src="https://zerads.com/ad/ad.php?width=300&ref=11510" 
@@ -518,12 +528,22 @@ $captchaQuestion = $_SESSION['captcha_question'] ?? '2 + 3';
             </header>
             <div class="modal-body">
                 <p align="center">Please read the following rules carefully before using.</p>
-                <p align="center">You agree to be of legal age in your country to partake in this program, and in all the cases your minimal age must be 18 years. Dorkwin is not available to the general public and is opened only to users using DORKCOIN blockchain that have a valid DORKCOIN wallet. Every deposit is considered to be a public transaction between the dorkwin.biz.ht and its Member. This service is not available to residents of California, Washington, or any jurisdiction where online gaming with virtual currency convertible to value is restricted. By using this site, you certify you are not a resident of such jurisdictions.</p>
-                <p align="center">The information, communications and materials contained herein are not to be regarded as an offer, nor a solicitation for investments in any jurisdiction which deems non-public offers or solicitations unlawful, nor to any person to whom it will be unlawful to make such offer or solicitation. dorkwin.biz.ht is not responsible or liable for any loss of data.</p>
+				<!-- NEW: Privacy & Data Collection Section -->
+				<p align="center" style="background: #1a1a2e; padding: 15px; border-radius: 8px; border-left: 3px solid #FFD700; margin: 15px 0;">
+					<strong style="color: #FFD700;">PRIVACY & DATA COLLECTION</strong><br>
+					<span style="color: #ddd; font-size: 13px;">
+						This site uses a PHP session cookie for CAPTCHA verification. No personal data is collected or shared.<br>
+						Your <strong>IP address</strong> is temporarily stored to prevent multiple wallets from the same IP.<br>
+						All IP data is <strong>automatically deleted</strong> daily at 12:00 UTC.<br>
+						No IP data is shared with third parties.
+					</span>
+				</p>				
+                <p align="center">You agree to be of legal age in your country to partake in this program, and in all the cases your minimal age must be 18 years. Dorkwin is not available to the general public and is opened only to users using DORKCOIN blockchain that have a valid DORKCOIN wallet. Every deposit and or withdrawal is considered to be a public transaction between the dorkwin.biz.ht and its member. This service is not available to residents of California, Washington, or any jurisdiction where online gaming with virtual currency convertible to value is restricted. By using this site, you certify you are not a resident of such jurisdictions.</p>
+                <p align="center">The information, communications and materials contained herein are not to be regarded as an offer, nor a solicitation for investments in any jurisdiction which deems non-public offers or solicitations unlawful, nor to any person to whom it will be unlawful to make such offer or solicitation. Dorkwin.biz.ht is not responsible or liable for any loss of data.</p>
                 <p align="center">Dorkwin is not FDIC insured and not a licensed bank or a security firm.</p>
                 <p align="center">You agree to hold all principals and members harmless of any liability. You are investing at your own risk and you agree that a past performance is not an explicit guarantee for the same future performance. You agree that all information, communications and materials you will find on this site are intended to be regarded as an informational and educational matter and not an investment advice.</p>
                 <p align="center">We reserve the right to change the rules, commissions and rates of the program at any time and at our sole discretion without notice, especially in order to respect the integrity and security of the members' interests. You agree that it is your sole responsibility to review the current terms.</p>
-                <p align="center">dorkwin.biz.ht is not responsible or liable for any damages, losses and costs resulting from any violation of the conditions and terms and/or use of our website by a member. You guarantee to dorkwin.biz.ht that you will not use this site in any illegal way and you agree to respect your local, national and international laws.</p>
+                <p align="center">Dorkwin.biz.ht is not responsible or liable for any damages, losses and costs resulting from any violation of the conditions and terms and/or use of our website by a member. You guarantee to dorkwin.biz.ht that you will not use this site in any illegal way and you agree to respect your local, national and international laws.</p>
                 <p align="center">Don't post bad vote on Public Forums and at Gold Rating Site without contacting the administrator of our program FIRST. Maybe there was a technical problem with your transaction, so please always CLEAR the thing with the administrator. $DORK SHOULD BE EVALUATED BASED ON ITS OWN MERITS AND RISKS, AND ANY INVESTMENT DECISIONS SHOULD BE MADE AFTER CONDUCTING INDEPENDENT RESEARCH AND SEEKING PROFESSIONAL ADVICE. INVESTING IN CRYPTO CURRENCY IS SUBJECT TO MARKET RISK. INVEST RESPONSIBLY</p>
                 <p align="center">Multiple IPs, BOTs, VPNs, Proxies and 3rd party software or scripts use to increase balance by cheating are not allowed! Failure to comply with this will result in permanent ban from the webpage without notice! We will not tolerate SPAM or any type of UCE in this program. SPAM violators will be immediately and permanently removed from the program. If you do not agree with the above disclaimer, please do not go any further.</p>
             </div>
@@ -532,7 +552,7 @@ $captchaQuestion = $_SESSION['captcha_question'] ?? '2 + 3';
 
     <script>
         // ===== CONFIGURATION =====
-        const API_URL = 'http://YOUR_BACKEND:PORT'; // Your internal backend
+        const API_URL = 'http://EXTERNAL_RPC_IP:3000'; // Your internal backend
         let captchaTimerInterval = null;
         let captchaExpiryTime = <?php echo time() + 300; ?>;
 
