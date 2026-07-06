@@ -5,10 +5,10 @@ const fs = require('fs');
 const path = require('path');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const helmet = require('helmet');
-
+const schedule = require('node-schedule'); // ← ADD THIS
 
 const app = express();
-const PORT = 5501;
+const PORT = 3000;
 
 // ===== SECURITY MIDDLEWARE =====
 // Use Helmet with sensible defaults
@@ -19,39 +19,33 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            // Allow your frontend domain to call the API
-            connectSrc: ["'self'", "http://your frontend domain:5501"],
-            // Disable unsafe inline for stricter security
+            connectSrc: ["'self'", "http://EXTERNAL_RPC_IP:3000"],
             scriptSrc: ["'self'"],
-            styleSrc: ["'self'", "'unsafe-inline'"], // Only if needed
+            styleSrc: ["'self'", "'unsafe-inline'"],
             imgSrc: ["'self'", "data:", "https:"],
         },
     },
-    // Allow cross-origin requests (you're using CORS already)
     crossOriginResourcePolicy: { policy: "cross-origin" },
-    // Disable HSTS if you're not using HTTPS (optional)
     hsts: false,
 }));
 
 // ===== RATE LIMITING CONFIGURATION =====
-
-// General API rate limit (all endpoints)
 const generalLimiter = rateLimit({
-    windowMs: 60 * 1000, // 1 minute
-    max: 100, // 100 requests per minute
+    windowMs: 60 * 1000,
+    max: 100,
     message: {
         error: 'Too many requests, please slow down',
         friendlyMessage: '⏳ Too many requests! Please wait a moment.'
     },
-    standardHeaders: true, // Return rate limit info in headers
+    standardHeaders: true,
     legacyHeaders: false,
-    skipSuccessfulRequests: false, // Count all requests
+    skipSuccessfulRequests: false,
 });
 
 // Strict rate limit for sensitive endpoints (play, send, balance)
 const strictLimiter = rateLimit({
-    windowMs: 60 * 1000, // 1 minute
-    max: 10, // 10 requests per minute for sensitive operations
+    windowMs: 60 * 1000,
+    max: 10,
     message: {
         error: 'Too many play attempts, please wait',
         friendlyMessage: '⏳ Too many attempts! Please wait a moment.'
@@ -61,19 +55,16 @@ const strictLimiter = rateLimit({
     skipSuccessfulRequests: false,
     // Key generator to rate-limit by IP (or combination of IP + address)
     keyGenerator: (req) => {
-        // Use IP + address for stricter limits per wallet
         const address = req.body.address || req.params.address || 'unknown';
         const ipKey = ipKeyGenerator(req.ip);
-	return `${req.ip}-${address}`;
+        return `${req.ip}-${address}`;
     }
 });
 
 // ===== PER-ADDRESS RATE LIMITING =====
+const addressPlayTracker = new Map();
+const ipPlayTracker = new Map();
 
-// Track plays per address per day with rate limiting
-const addressPlayTracker = new Map(); // { key: { count, timestamp } }
-
-// Clean up old entries every hour (prevents memory leaks)
 setInterval(() => {
     const now = Date.now();
     const oneDayAgo = now - (24 * 60 * 60 * 1000);
@@ -82,14 +73,80 @@ setInterval(() => {
             addressPlayTracker.delete(key);
         }
     }
-}, 60 * 60 * 1000); // Clean up every hour
+    // Clean IP tracker too
+    for (const [key, value] of ipPlayTracker.entries()) {
+        if (value.timestamp < oneDayAgo) {
+            ipPlayTracker.delete(key);
+        }
+    }
+}, 60 * 60 * 1000);
 
-// Per-address limit middleware (combines with existing daily play check)
+// ===== IP LIMIT MIDDLEWARE =====
+const ipLimitMiddleware = async (req, res, next) => {
+    const clientIp = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
+    
+    if (!clientIp) {
+        return next();
+    }
+    
+    const today = new Date().toISOString().split('T')[0];
+    const key = `${clientIp}-${today}`;
+    const now = Date.now();
+    
+    // Load current data to check IP plays
+    const data = loadLottoData();
+    const todayPlays = data.ipPlays?.[clientIp] || [];
+    
+    // Check if this IP has already played today
+    if (todayPlays.length > 0) {
+        // If IP already played, check if it's the same address
+        const address = req.body.address;
+        const existingAddress = todayPlays[0];
+        
+        if (address && existingAddress !== address) {
+            // Different wallet from same IP - block it!
+            return res.status(403).json({
+                error: 'Multiple wallets from same IP not allowed',
+                friendlyMessage: '❌ You can only play with one wallet per day from this IP address!'
+            });
+        }
+    }
+    
+    // Check memory-based rate limit for IP (prevent rapid switching)
+    if (ipPlayTracker.has(key)) {
+        const data = ipPlayTracker.get(key);
+        const timeSinceLastAttempt = (now - data.timestamp) / 1000;
+        
+        // Allow retry after 5 seconds
+        if (timeSinceLastAttempt < 5 && data.count >= 1) {
+            return res.status(429).json({
+                error: 'Too many attempts, please wait',
+                friendlyMessage: `⏳ Please wait ${Math.ceil(5 - timeSinceLastAttempt)} seconds before trying again`
+            });
+        }
+        
+        ipPlayTracker.set(key, {
+            count: data.count + 1,
+            timestamp: now
+        });
+    } else {
+        ipPlayTracker.set(key, {
+            count: 1,
+            timestamp: now
+        });
+    }
+    
+    // Store IP in request for later logging
+    req.clientIp = clientIp;
+    next();
+};
+
+// ===== ADDRESS LIMIT MIDDLEWARE =====
 const addressLimitMiddleware = async (req, res, next) => {
     const address = req.body.address || req.params.address;
     
     if (!address) {
-        return next(); // Skip if no address provided
+        return next();
     }
     
     // Validate address format first
@@ -116,7 +173,7 @@ const addressLimitMiddleware = async (req, res, next) => {
     // Check memory-based rate limit (additional protection against race conditions)
     if (addressPlayTracker.has(key)) {
         const data = addressPlayTracker.get(key);
-        const timeSinceLastAttempt = (now - data.timestamp) / 1000; // seconds
+        const timeSinceLastAttempt = (now - data.timestamp) / 1000;
         
         // Allow retry after 5 seconds (prevents accidental double-clicks)
         if (timeSinceLastAttempt < 5 && data.count >= 1) {
@@ -146,30 +203,24 @@ const addressLimitMiddleware = async (req, res, next) => {
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
-
-// Apply general rate limit to all routes
 app.use(generalLimiter);
 
-// ===== APPLY STRICT LIMITS TO SPECIFIC ENDPOINTS =====
-
-// API endpoints with strict limiting
-app.post('/api/play', strictLimiter); // Most important
+// ===== APPLY STRICT LIMITS =====
+app.post('/api/play', strictLimiter);
 app.post('/api/validate-address', strictLimiter);
 app.get('/api/balance/:address', strictLimiter);
-
-// Stats endpoint can use general limiter (or no strict limit)
 app.get('/api/stats', generalLimiter);
 app.get('/api/canplay/:address', generalLimiter);
 app.get('/api/test-telegram', strictLimiter);
 
-// RPC Configuration
+// ===== CONFIGURATION =====
 const RPC_URL = 'http://127.0.0.1:22555';
-const RPC_USER = 'YOUR_RPC_USER';
-const RPC_PASS = 'YOUR_RPC_PASS';
+const RPC_USER = 'YOURUSER';
+const RPC_PASS = 'YOURPASSWORD';
 
 // Telegram Configuration
 const TELEGRAM_BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN';
-const TELEGRAM_CHAT_ID = 'YOUR_TELEGRAM_CHAT_ID';
+const TELEGRAM_CHAT_ID = 'YOUR_TG_CHAT_ID';
 const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
 
 // Lotto Configuration
@@ -185,30 +236,21 @@ const PRIZES = [
     { name: 'No Luck', emoji: '😢', chance: 0.315, amount: 0, tier: 6 }
 ];
 
-// ===== Helper Functions =====
+// ===== HELPER FUNCTIONS =====
 
 // Validate Dorkcoin address format - EXACTLY 34 characters, starts with 'D'
 function isValidDorkcoinAddress(address) {
     // Must be a string
     if (!address || typeof address !== 'string') return false;
-    
-    // Trim whitespace
     address = address.trim();
-    
-    // Must be exactly 34 characters (D + 33 alphanumeric)
     if (address.length !== 34) return false;
-    
-    // Must start with 'D'
     if (!address.startsWith('D')) return false;
-    
-    // Check if it contains only valid characters (alphanumeric)
     const validChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     for (let i = 0; i < address.length; i++) {
         if (!validChars.includes(address[i])) {
             return false;
         }
     }
-    
     return true;
 }
 
@@ -269,7 +311,7 @@ function loadLottoData() {
     } catch (error) {
         console.error('Error loading lotto data:', error);
     }
-    return { plays: {}, lastReset: null };
+    return { plays: {}, ipPlays: {}, ipAddresses: {}, lastReset: null };
 }
 
 // Save lottery data to file
@@ -281,38 +323,161 @@ function saveLottoData(data) {
     }
 }
 
-// Check if daily reset is needed (12:00 UTC)
+// ===== FIXED RESET FUNCTIONS =====
+
+// Check if reset is needed - COMPLETELY REWRITTEN
 function needsReset() {
-    const now = new Date();
-    const today = new Date(now);
-    today.setUTCHours(12, 0, 0, 0);
-    
     const data = loadLottoData();
     if (!data.lastReset) return true;
     
+    const now = new Date();
     const lastReset = new Date(data.lastReset);
-    return now > today && lastReset < today;
+    
+    // Get today's reset time (12:00 UTC)
+    const todayReset = new Date(now);
+    todayReset.setUTCHours(12, 0, 0, 0);
+    
+    // If now is before today's reset (e.g., 10:00 UTC), we need to check
+    // if the last reset was yesterday or earlier
+    if (now < todayReset) {
+        // Check if lastReset was before yesterday's reset
+        const yesterdayReset = new Date(todayReset);
+        yesterdayReset.setUTCDate(yesterdayReset.getUTCDate() - 1);
+        return lastReset < yesterdayReset;
+    } else {
+        // Now is after today's reset (e.g., 13:00 UTC)
+        // Check if lastReset was before today's reset
+        return lastReset < todayReset;
+    }
 }
 
-// Perform daily reset
+// Perform daily reset - NOW SAFE TO CALL MULTIPLE TIMES
 function performReset() {
     const data = loadLottoData();
+    const now = new Date();
+    const todayReset = new Date(now);
+    todayReset.setUTCHours(12, 0, 0, 0);
+    
+    // Only reset if the last reset was before today's reset time
+    if (data.lastReset) {
+        const lastReset = new Date(data.lastReset);
+        if (lastReset >= todayReset) {
+            console.log('⏭️ Reset already performed today, skipping');
+            return false;
+        }
+    }
+    
     data.plays = {};
+    data.ipPlays = {};        // ← Clear IP plays
+    data.ipAddresses = {};    // ← Clear IP addresses
     data.lastReset = new Date().toISOString();
     saveLottoData(data);
-    console.log('🔄 Daily reset performed at 12:00 UTC');
+    console.log(`🔄 Daily reset performed at ${new Date().toUTCString()}`);
     
     // Send reset notification to Telegram
     sendTelegramNotification(`🔄 <b>Daily Reset Completed</b>\n\nAll players can now play again! 🎰\nTime: ${new Date().toUTCString()}`);
+    return true;
 }
 
-// Check if user already played today
+// ===== SCHEDULED RESET AT 12:00 UTC DAILY =====
+function scheduleDailyReset() {
+    // Schedule at 12:00 UTC every day
+    const rule = new schedule.RecurrenceRule();
+    rule.hour = 12;
+    rule.minute = 0;
+    rule.second = 0;
+    rule.tz = 'UTC';
+    
+    schedule.scheduleJob(rule, function() {
+        console.log('⏰ Scheduled reset triggered at 12:00 UTC');
+        performReset();
+    });
+    
+    console.log('⏰ Daily reset scheduled for 12:00 UTC');
+    
+    // Also run a check every hour in case the schedule missed
+    setInterval(() => {
+        if (needsReset()) {
+            console.log('🔄 Detected missed reset, performing now');
+            performReset();
+        }
+    }, 60 * 60 * 1000);
+}
+
+// ===== PLAY TRACKING FUNCTIONS =====
+
 function hasPlayedToday(address) {
     const data = loadLottoData();
     const today = new Date().toISOString().split('T')[0];
     return data.plays[address] === today;
 }
 
+// NEW: Check if IP already played today with a different wallet
+function hasIpPlayedToday(clientIp, address) {
+    const data = loadLottoData();
+    const today = new Date().toISOString().split('T')[0];
+    
+    if (!data.ipPlays) {
+        data.ipPlays = {};
+        saveLottoData(data);
+        return false;
+    }
+    
+    const ipPlays = data.ipPlays[clientIp] || [];
+    
+    // If IP has no plays today, allow
+    if (ipPlays.length === 0) {
+        return false;
+    }
+    
+    // Check if the IP's play date is today
+    const ipPlayDate = ipPlays[0]; // We store the date string
+    if (ipPlayDate !== today) {
+        // IP played on a different day, allow
+        return false;
+    }
+    
+    // IP played today, check if it's the same address
+    // We need to check if this IP was used with a DIFFERENT address today
+    const ipAddresses = data.ipAddresses?.[clientIp] || [];
+    if (ipAddresses.length > 0 && !ipAddresses.includes(address)) {
+        // This IP was used with a different address today
+        return true; // Block!
+    }
+    
+    return false;
+}
+
+// NEW: Record IP play
+function recordIpPlay(clientIp, address) {
+    const data = loadLottoData();
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Initialize ipPlays if not exists
+    if (!data.ipPlays) {
+        data.ipPlays = {};
+    }
+    if (!data.ipAddresses) {
+        data.ipAddresses = {};
+    }
+    
+    // Record IP play
+    if (!data.ipPlays[clientIp]) {
+        data.ipPlays[clientIp] = [];
+    }
+    // Store only the latest play date (we just need to know if played today)
+    data.ipPlays[clientIp] = [today];
+    
+    // Track which addresses this IP used
+    if (!data.ipAddresses[clientIp]) {
+        data.ipAddresses[clientIp] = [];
+    }
+    if (!data.ipAddresses[clientIp].includes(address)) {
+        data.ipAddresses[clientIp].push(address);
+    }
+    
+    saveLottoData(data);
+}
 // Record user's play
 function recordPlay(address) {
     const data = loadLottoData();
@@ -350,10 +515,8 @@ async function sendPrize(userAddress, amount, prizeName) {
         }
         
         const txid = await callRPC('sendtoaddress', [userAddress, amount]);
-        const message = `💰 Sent ${amount} DORK to ${userAddress} for ${prizeName}`;
-        console.log(message);
+        console.log(`💰 Sent ${amount} DORK to ${userAddress} for ${prizeName}`);
         
-        // Send to Telegram
         const telegramMessage = `🎰 <b>WINNER!</b>\n\n` +
                                `🏆 Prize: <b>${prizeName}</b>\n` +
                                `💲 Amount: <b>${amount} DORK</b>\n` +
@@ -417,7 +580,7 @@ app.get('/api/canplay/:address', async (req, res) => {
             });
         }
         
-        // Check daily reset
+        // Check and perform reset if needed
         if (needsReset()) {
             performReset();
         }
@@ -434,17 +597,15 @@ app.get('/api/canplay/:address', async (req, res) => {
     }
 });
 
-// 3. Play the lotto (OPEN CHEST) - WITH PER-ADDRESS LIMITING
-app.post('/api/play', strictLimiter, addressLimitMiddleware, async (req, res) => {
+app.post('/api/play', strictLimiter, ipLimitMiddleware, addressLimitMiddleware, async (req, res) => {
     try {
         const { address } = req.body;
+        const clientIp = req.clientIp || 'unknown';
         
         if (!address) {
             return res.status(400).json({ error: 'Wallet address required' });
         }
         
-        // Note: Address validation is now handled in addressLimitMiddleware
-        // But we still need to validate here in case middleware was bypassed
         if (!isValidDorkcoinAddress(address)) {
             return res.status(400).json({ 
                 error: 'Invalid Dorkcoin wallet address format. Must be exactly 34 characters starting with "D"',
@@ -452,12 +613,18 @@ app.post('/api/play', strictLimiter, addressLimitMiddleware, async (req, res) =>
             });
         }
         
-        // Check daily reset
+        // Check and perform reset if needed
         if (needsReset()) {
             performReset();
         }
         
-        // Double-check if already played (in case of race condition)
+        if (hasIpPlayedToday(clientIp, address)) {
+            return res.status(403).json({
+                error: 'Multiple wallets from same IP not allowed',
+                friendlyMessage: '❌ You can only play with one wallet per day from this IP address!'
+            });
+        }
+        
         if (hasPlayedToday(address)) {
             return res.status(400).json({ 
                 error: 'Already played today! Come back tomorrow at 12:00 UTC!',
@@ -470,6 +637,9 @@ app.post('/api/play', strictLimiter, addressLimitMiddleware, async (req, res) =>
         
         // Record play
         recordPlay(address);
+        
+        // NEW: Record IP play
+        recordIpPlay(clientIp, address);
         
         // Send prize if won
         let txResult = null;
@@ -554,14 +724,25 @@ app.get('/api/test-telegram', async (req, res) => {
     }
 });
 
-// Start server
+// ===== START SERVER =====
+
+// Schedule daily reset
+scheduleDailyReset();
+
+// Perform initial reset check on startup
+setTimeout(() => {
+    if (needsReset()) {
+        console.log('🔄 Performing initial reset on startup');
+        performReset();
+    }
+}, 5000); // Wait 5 seconds for everything to initialize
+
 app.listen(PORT, () => {
     console.log(`🎰 Dorkwin Daily Lotto API running at http://localhost:${PORT}`);
     console.log(`🔄 Daily reset at 12:00 UTC`);
     console.log(`📊 Prize tiers: ${PRIZES.length} levels`);
     console.log(`🤖 Telegram bot enabled`);
     
-    // Send startup notification
     sendTelegramNotification(`🚀 <b>Dorkwin Lotto Bot Started!</b>\n\n` +
                             `Server is running and ready to process plays! 🎰\n` +
                             `Time: ${new Date().toUTCString()}`);
