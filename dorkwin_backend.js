@@ -254,7 +254,7 @@ function isValidDorkcoinAddress(address) {
     return true;
 }
 
-// Generic RPC caller
+// Generic RPC caller - IMPROVED ERROR HANDLING
 async function callRPC(method, params = []) {
     try {
         const response = await axios.post(RPC_URL, {
@@ -267,22 +267,67 @@ async function callRPC(method, params = []) {
                 username: RPC_USER,
                 password: RPC_PASS
             },
-            headers: { 'Content-Type': 'text/plain' }
+            headers: { 'Content-Type': 'text/plain' },
+            // Don't throw on HTTP 500 - we want to inspect the response
+            validateStatus: function(status) {
+                return status >= 200 && status < 600;
+            }
         });
         
-        if (response.data.error) {
-            // Check if it's an invalid address error
-            const errorMsg = response.data.error.message || '';
-            if (errorMsg.includes('Invalid address') || errorMsg.includes('invalid address')) {
-                const customError = new Error('Invalid Dorkcoin wallet address');
+        // Check if response has error
+        if (response.data && response.data.error) {
+            const errorMsg = response.data.error.message || 'Unknown RPC error';
+            
+            // Check for invalid address errors
+            if (errorMsg.includes('Invalid address') || 
+                errorMsg.includes('invalid address') ||
+                errorMsg.includes('not valid') ||
+                errorMsg.includes('Invalid Dorkcoin address') ||
+                errorMsg.includes('sendtoaddress') && errorMsg.includes('invalid')) {
+                
+                const customError = new Error('Invalid Dorkcoin wallet address - address does not exist or is invalid');
                 customError.isInvalidAddress = true;
+                customError.isRpcError = true;
+                customError.rpcError = response.data.error;
                 throw customError;
             }
-            throw new Error(response.data.error.message);
+            
+            // Other RPC errors
+            const rpcError = new Error(`RPC Error: ${errorMsg}`);
+            rpcError.isRpcError = true;
+            rpcError.rpcError = response.data.error;
+            throw rpcError;
         }
+        
         return response.data.result;
     } catch (error) {
-        console.error('RPC Error:', error.message);
+        // If it's already a custom error, re-throw it
+        if (error.isInvalidAddress || error.isRpcError) {
+            throw error;
+        }
+        
+        // Handle axios network errors
+        if (axios.isAxiosError(error)) {
+            if (error.code === 'ECONNREFUSED') {
+                const connError = new Error('Cannot connect to Dorkcoin RPC server');
+                connError.isConnectionError = true;
+                throw connError;
+            }
+            if (error.response) {
+                // The request was made and the server responded with a status code
+                // that falls out of the range of 2xx
+                const errorMsg = error.response.data?.error?.message || 
+                                error.response.data?.message || 
+                                `HTTP ${error.response.status}: ${error.response.statusText}`;
+                const rpcError = new Error(`RPC Error: ${errorMsg}`);
+                rpcError.isRpcError = true;
+                rpcError.statusCode = error.response.status;
+                rpcError.responseData = error.response.data;
+                throw rpcError;
+            }
+        }
+        
+        // Re-throw other errors
         throw error;
     }
 }
@@ -500,23 +545,25 @@ function calculatePrize() {
     return PRIZES[PRIZES.length - 1]; // No Luck fallback
 }
 
-// Send prize to user
+// Send prize to user - IMPROVED
 async function sendPrize(userAddress, amount, prizeName) {
     try {
         if (amount === 0) {
             return { txid: null, message: 'No prize to send' };
         }
         
-        // Validate address first
+        // Validate address format first (quick check before RPC call)
         if (!isValidDorkcoinAddress(userAddress)) {
             const error = new Error('Invalid Dorkcoin wallet address format. Must be exactly 34 characters starting with "D"');
             error.isInvalidAddress = true;
             throw error;
         }
         
+        // Try to send the prize
         const txid = await callRPC('sendtoaddress', [userAddress, amount]);
         console.log(`💰 Sent ${amount} DORK to ${userAddress} for ${prizeName}`);
         
+        // Only send Telegram notification for successful sends
         const telegramMessage = `🎰 <b>WINNER!</b>\n\n` +
                                `🏆 Prize: <b>${prizeName}</b>\n` +
                                `💲 Amount: <b>${amount} DORK</b>\n` +
@@ -527,17 +574,37 @@ async function sendPrize(userAddress, amount, prizeName) {
         await sendTelegramNotification(telegramMessage);
         
         return { txid, message: 'Prize sent successfully!' };
-    } catch (error) {
-        console.error('Error sending prize:', error);
         
-        // Don't send Telegram notification for invalid addresses
-        if (!error.isInvalidAddress) {
-            await sendTelegramNotification(`❌ <b>Prize Sending Failed</b>\n\n` +
+    } catch (error) {
+        console.error('Error sending prize:', error.message);
+        
+        // DON'T send Telegram notification for invalid addresses (user error)
+        // DON'T send Telegram notification for format errors (user error)
+        if (error.isInvalidAddress) {
+            console.log(`⚠️ Invalid address attempted: ${userAddress} - Not sending Telegram notification`);
+            throw error; // Re-throw so the play endpoint can handle it
+        }
+        
+        // ONLY send Telegram for unexpected errors (technical issues)
+        if (!error.isRpcError && !error.isConnectionError) {
+            await sendTelegramNotification(`❌ <b>⚠️ Technical Error - Prize Sending Failed</b>\n\n` +
                                           `Prize: ${prizeName}\n` +
                                           `Amount: ${amount} DORK\n` +
                                           `Address: <code>${userAddress}</code>\n` +
-                                          `Error: ${error.message}`);
+                                          `Error: ${error.message}\n\n` +
+                                          `This is a technical issue, not a user error.`);
+        } else if (error.isRpcError) {
+            // RPC errors might be technical or user-related
+            // Only send if it's NOT an invalid address
+            if (!error.message.includes('Invalid') && !error.message.includes('invalid')) {
+                await sendTelegramNotification(`❌ <b>⚠️ RPC Error</b>\n\n` +
+                                              `Prize: ${prizeName}\n` +
+                                              `Amount: ${amount} DORK\n` +
+                                              `Address: <code>${userAddress}</code>\n` +
+                                              `Error: ${error.message}`);
+            }
         }
+        
         throw error;
     }
 }
