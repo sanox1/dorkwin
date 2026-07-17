@@ -31,9 +31,3 @@ How Frontend HTML Works:
 DISCLAIMER: NO WARRANTY, USE AT YOUR OWN RISK! THIS IS MADE JUST FOR FUN AND TO LEARN AND I AM NOT RESPONSIBLE FOR ANY STOLEN FUNDS / FINANCIAL LOSS! IF YOU DEPLOY AND USE THESE SCRIPTS YOU SHOULD NEVER KEEP A LOT OF $DORK IN YOUR DORKCORE NODE RPC SERVER.
 
 This project is open-source and contributions are welcome!
-
-1.Fork this repository
-2.Create a feature branch: git checkout -b feature/your-feature
-3.Commit your changes: git commit -m 'Add some feature'
-4.Push to the branch: git push origin feature/your-feature
-5.Open a Pull Request
